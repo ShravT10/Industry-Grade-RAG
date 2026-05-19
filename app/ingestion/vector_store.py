@@ -1,4 +1,5 @@
 import os
+import json
 from pinecone import Pinecone
 from dotenv import load_dotenv
 
@@ -7,6 +8,29 @@ load_dotenv()
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 
 index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+CHUNK_FILE = os.path.join(BASE_DIR, "data", "chunks.json")
+
+
+def save_chunks_locally(chunks, document_name):
+    existing_chunks = []
+
+    if os.path.exists(CHUNK_FILE):
+        with open(CHUNK_FILE, "r", encoding="utf-8") as f:
+            existing_chunks = json.load(f)
+
+    for i, chunk in enumerate(chunks):
+        existing_chunks.append({
+            "id": f"{document_name}-{i}",
+            "text": chunk["text"],
+            "page": chunk["page"],
+            "source": document_name
+        })
+
+    with open(CHUNK_FILE, "w", encoding="utf-8") as f:
+        json.dump(existing_chunks, f, indent=2)
 
 
 def upload_to_pinecone(chunks, embeddings, document_name):
@@ -26,6 +50,9 @@ def upload_to_pinecone(chunks, embeddings, document_name):
         vectors.append(vector)
 
     index.upsert(vectors=vectors)
+    save_chunks_locally(chunks, document_name)
+
+
 
 def query_pinecone(query_embedding, top_k=5):
     results = index.query(

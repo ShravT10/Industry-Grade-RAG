@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
-from app.ingestion.retriever import retrieve_chunks
+from app.retrieval.retriever import retrieve_chunks
 from app.ingestion.pipeline import ingest_pdf
 
 class QueryRequest(BaseModel):
