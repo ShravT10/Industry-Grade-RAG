@@ -1,0 +1,6 @@
+fastapi
+pinecone
+uvicorn 
+pymupdf  
+sentence-transformers 
+python-dotenv
