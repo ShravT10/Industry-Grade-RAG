@@ -18,8 +18,15 @@ def save_chunks_locally(chunks, document_name):
     existing_chunks = []
 
     if os.path.exists(CHUNK_FILE):
-        with open(CHUNK_FILE, "r", encoding="utf-8") as f:
-            existing_chunks = json.load(f)
+        try:
+            with open(CHUNK_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+
+                if content:
+                    existing_chunks = json.loads(content)
+
+        except json.JSONDecodeError:
+            existing_chunks = []
 
     for i, chunk in enumerate(chunks):
         existing_chunks.append({
@@ -31,6 +38,8 @@ def save_chunks_locally(chunks, document_name):
 
     with open(CHUNK_FILE, "w", encoding="utf-8") as f:
         json.dump(existing_chunks, f, indent=2)
+
+    print(f"Saved {len(chunks)} chunks locally")
 
 
 def upload_to_pinecone(chunks, embeddings, document_name):

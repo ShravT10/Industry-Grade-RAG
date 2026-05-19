@@ -10,20 +10,27 @@ CHUNK_FILE = os.path.join(BASE_DIR, "data", "chunks.json")
 
 
 def load_chunks():
+    print(f"Loading chunks from: {CHUNK_FILE}")
+
     if not os.path.exists(CHUNK_FILE):
+        print("Chunks file does not exist")
         return []
 
-    try:
-        with open(CHUNK_FILE, "r", encoding="utf-8") as f:
-            content = f.read().strip()
+    with open(CHUNK_FILE, "r", encoding="utf-8") as f:
+        content = f.read().strip()
 
-            if not content:
-                return []
+        print("Raw file content:")
+        print(content[:500])
 
-            return json.loads(content)
+        if not content:
+            print("Chunks file is empty")
+            return []
 
-    except json.JSONDecodeError:
-        return []
+        chunks = json.loads(content)
+
+        print(f"Loaded {len(chunks)} chunks")
+
+        return chunks
 
 
 def sparse_search(query, top_k=10):
@@ -32,7 +39,8 @@ def sparse_search(query, top_k=10):
     corpus = [chunk["text"] for chunk in chunks]
 
     tokenized_corpus = [doc.split() for doc in corpus]
-
+    print(f"Corpus size: {len(tokenized_corpus)}")
+    
     bm25 = BM25Okapi(tokenized_corpus)
 
     tokenized_query = query.split()
