@@ -4,3 +4,5 @@ uvicorn
 pymupdf  
 sentence-transformers 
 python-dotenv
+rank-bm25 
+numpy

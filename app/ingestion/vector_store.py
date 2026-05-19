@@ -26,3 +26,12 @@ def upload_to_pinecone(chunks, embeddings, document_name):
         vectors.append(vector)
 
     index.upsert(vectors=vectors)
+
+def query_pinecone(query_embedding, top_k=5):
+    results = index.query(
+        vector=query_embedding.tolist(),
+        top_k=top_k,
+        include_metadata=True
+    )
+
+    return results
