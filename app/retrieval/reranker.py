@@ -1,14 +1,15 @@
 # app/retrieval/reranker.py
 import os
+import numpy as np
 from pathlib import Path
-from optimum.onnxruntime import ORTModelForSequenceClassification
 from transformers import AutoTokenizer
+import onnxruntime as ort
 
-# Path object handles Windows backslashes correctly
 ONNX_PATH = Path(__file__).resolve().parent.parent / "models" / "reranker-onnx"
+MODEL_FILE = str(ONNX_PATH / "model.onnx")
 
 tokenizer = AutoTokenizer.from_pretrained(str(ONNX_PATH))
-ort_model = ORTModelForSequenceClassification.from_pretrained(str(ONNX_PATH))
+session = ort.InferenceSession(MODEL_FILE, providers=["CPUExecutionProvider"])
 
 
 def rerank_results(query, results, top_k=5):
@@ -23,8 +24,15 @@ def rerank_results(query, results, top_k=5):
         return_tensors="np"
     )
 
-    outputs = ort_model(**encoded)
-    scores = outputs.logits.flatten().tolist()
+    # onnxruntime expects plain numpy int64
+    inputs = {
+        "input_ids": encoded["input_ids"].astype(np.int64),
+        "attention_mask": encoded["attention_mask"].astype(np.int64),
+        "token_type_ids": encoded["token_type_ids"].astype(np.int64),
+    }
+
+    outputs = session.run(None, inputs)
+    scores = outputs[0].flatten().tolist()
 
     reranked = []
     for result, score in zip(results, scores):

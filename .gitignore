@@ -5,3 +5,4 @@ uploads
 data/chunks.json
 *.pyc
 models/
+company-ca

@@ -16,6 +16,4 @@ model.save_pretrained(str(SAVE_PATH))
 print("Saving tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained("cross-encoder/ms-marco-MiniLM-L-6-v2")
 tokenizer.save_pretrained(str(SAVE_PATH))
-
-print(f"Done. Saved to: {SAVE_PATH}")
-print("Files:", list(SAVE_PATH.iterdir()))
+print(f"Done. Files: {list(SAVE_PATH.iterdir())}")
