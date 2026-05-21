@@ -4,7 +4,8 @@ import json
 import time
 import boto3
 import tempfile
-from app.ingestion.pipeline import ingest_pdf
+import asyncio
+from app.ingestion.pipeline import ingest_pdf_async
 from app.ssl_patch import apply_patch
 from dotenv import load_dotenv
 
@@ -49,7 +50,7 @@ def process_message(message):
             s3.download_file(BUCKET_NAME, s3_key, tmp_path)
             print(f"Downloaded {file_name} from S3")
 
-            ingest_pdf(tmp_path, file_name)
+            asyncio.run(ingest_pdf_async(tmp_path, file_name))
 
             # Move to processed/ prefix after success
             processed_key = s3_key.replace("uploads/", "processed/")
@@ -107,3 +108,6 @@ def poll():
 
 if __name__ == "__main__":
     poll()
+
+
+#HIEEE

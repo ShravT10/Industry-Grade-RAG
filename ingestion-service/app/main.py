@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
-from app.ingestion.pipeline import ingest_pdf
+from app.ingestion.pipeline import ingest_pdf_async
 
 class QueryRequest(BaseModel):
     query: str
@@ -23,7 +23,8 @@ async def upload_pdf(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(await file.read())
 
-    ingest_pdf(file_path, file.filename)
+    await ingest_pdf_async(file_path, file.filename)
+
 
     return {
         "message": "PDF ingested successfully",
