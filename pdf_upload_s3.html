@@ -1,0 +1,179 @@
+
+<h2 class="sr-only">PDF upload interface for S3 ingestion pipeline</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:2rem 1.5rem;max-width:680px}
+.header{margin-bottom:2rem}
+.header h1{font-size:22px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.header p{font-size:14px;color:var(--color-text-secondary)}
+.dropzone{border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:2.5rem 1.5rem;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;background:var(--color-background-primary)}
+.dropzone.drag{border-color:var(--color-border-info);background:var(--color-background-info)}
+.dropzone i{font-size:32px;color:var(--color-text-secondary);display:block;margin-bottom:12px}
+.dropzone .label{font-size:15px;color:var(--color-text-primary);font-weight:500;margin-bottom:4px}
+.dropzone .sub{font-size:13px;color:var(--color-text-secondary)}
+.dropzone .browse{color:var(--color-text-info);cursor:pointer;text-decoration:underline}
+#file-input{display:none}
+.btn-upload{width:100%;margin-top:1rem;padding:10px;font-size:14px;font-weight:500;border-radius:var(--border-radius-md);background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);color:var(--color-text-primary);cursor:pointer;transition:background 0.15s}
+.btn-upload:hover{background:var(--color-background-secondary)}
+.btn-upload:disabled{opacity:0.4;cursor:not-allowed}
+.queue{margin-top:1.5rem;display:flex;flex-direction:column;gap:8px}
+.file-row{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 12px}
+.file-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.file-top i{font-size:18px;color:var(--color-text-secondary);flex-shrink:0}
+.file-name{font-size:13px;font-weight:500;color:var(--color-text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{font-size:12px;color:var(--color-text-secondary);flex-shrink:0}
+.file-status{font-size:12px;flex-shrink:0}
+.status-waiting{color:var(--color-text-secondary)}
+.status-uploading{color:var(--color-text-info)}
+.status-done{color:var(--color-text-success)}
+.status-error{color:var(--color-text-danger)}
+.progress-bar{height:3px;background:var(--color-border-tertiary);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;background:var(--color-background-info);border-radius:99px;width:0%;transition:width 0.2s}
+.progress-fill.done{background:var(--color-background-success)}
+.progress-fill.error{background:var(--color-background-danger)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:1.5rem}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+.stat-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:2px}
+.stat-val{font-size:20px;font-weight:500;color:var(--color-text-primary)}
+.empty{text-align:center;padding:1.5rem;color:var(--color-text-secondary);font-size:13px;display:none}
+</style>
+
+<div class="wrap">
+  <div class="header">
+    <h1>Document Upload</h1>
+    <p>PDFs are uploaded to S3 and processed automatically by the ingestion pipeline</p>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+    <div class="label">Drop PDFs here or <span class="browse" id="browse-btn">browse files</span></div>
+    <div class="sub">PDF files only · No size limit</div>
+  </div>
+  <input type="file" id="file-input" multiple accept=".pdf">
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Queued</div><div class="stat-val" id="stat-queued">0</div></div>
+    <div class="stat"><div class="stat-label">Uploaded</div><div class="stat-val" id="stat-done">0</div></div>
+    <div class="stat"><div class="stat-label">Failed</div><div class="stat-val" id="stat-failed">0</div></div>
+  </div>
+
+  <div class="queue" id="queue"></div>
+  <div class="empty" id="empty">No files selected yet</div>
+
+  <button class="btn-upload" id="upload-btn" disabled>Upload to S3</button>
+</div>
+
+<script>
+const LAMBDA_URL = 'YOUR_LAMBDA_FUNCTION_URL_HERE';
+
+let files = [];
+let stats = {queued:0, done:0, failed:0};
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const queue = document.getElementById('queue');
+const uploadBtn = document.getElementById('upload-btn');
+const empty = document.getElementById('empty');
+
+document.getElementById('browse-btn').onclick = () => fileInput.click();
+dropzone.onclick = (e) => { if(e.target.id !== 'browse-btn') fileInput.click(); };
+
+dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('drag'); };
+dropzone.ondragleave = () => dropzone.classList.remove('drag');
+dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('drag'); addFiles(e.dataTransfer.files); };
+fileInput.onchange = () => addFiles(fileInput.files);
+
+function fmtSize(b){ if(b<1024) return b+'B'; if(b<1048576) return Math.round(b/1024)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+
+function addFiles(newFiles){
+  Array.from(newFiles).forEach(f => {
+    if(!f.name.endsWith('.pdf')) return;
+    if(files.find(x => x.file.name === f.name && x.file.size === f.size)) return;
+    const id = 'f' + Date.now() + Math.random().toString(36).slice(2);
+    files.push({id, file:f, status:'waiting'});
+    stats.queued++;
+  });
+  renderQueue();
+  updateStats();
+  uploadBtn.disabled = files.filter(f=>f.status==='waiting').length === 0;
+}
+
+function renderQueue(){
+  if(files.length === 0){ empty.style.display='block'; queue.innerHTML=''; return; }
+  empty.style.display='none';
+  queue.innerHTML = files.map(f => `
+    <div class="file-row" id="${f.id}">
+      <div class="file-top">
+        <i class="ti ti-file-type-pdf" aria-hidden="true"></i>
+        <span class="file-name">${f.file.name}</span>
+        <span class="file-size">${fmtSize(f.file.size)}</span>
+        <span class="file-status status-${f.status}">${statusLabel(f.status)}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill ${f.status}" id="bar-${f.id}" style="width:${f.progress||0}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function statusLabel(s){
+  return {waiting:'Waiting',uploading:'Uploading…',done:'Done',error:'Failed'}[s]||s;
+}
+
+function updateStats(){
+  document.getElementById('stat-queued').textContent = files.filter(f=>f.status==='waiting').length;
+  document.getElementById('stat-done').textContent = files.filter(f=>f.status==='done').length;
+  document.getElementById('stat-failed').textContent = files.filter(f=>f.status==='error').length;
+}
+
+function updateFile(id, patch){
+  const f = files.find(x=>x.id===id);
+  if(f) Object.assign(f, patch);
+  const row = document.getElementById(id);
+  if(!row) return;
+  row.querySelector('.file-status').className = 'file-status status-' + f.status;
+  row.querySelector('.file-status').textContent = statusLabel(f.status);
+  const bar = document.getElementById('bar-'+id);
+  bar.style.width = (f.progress||0) + '%';
+  bar.className = 'progress-fill ' + (f.status==='done'?'done':f.status==='error'?'error':'');
+  updateStats();
+}
+
+async function uploadFile(entry){
+  updateFile(entry.id, {status:'uploading', progress:10});
+  try {
+    const res = await fetch(`${LAMBDA_URL}?fileName=${encodeURIComponent(entry.file.name)}`);
+    if(!res.ok) throw new Error('Failed to get presigned URL');
+    const {url} = await res.json();
+    updateFile(entry.id, {progress:30});
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', url);
+      xhr.setRequestHeader('Content-Type', 'application/pdf');
+      xhr.upload.onprogress = (e) => {
+        if(e.lengthComputable){
+          const pct = Math.round(30 + (e.loaded/e.total)*65);
+          updateFile(entry.id, {progress:pct});
+        }
+      };
+      xhr.onload = () => xhr.status===200 ? resolve() : reject(new Error('Upload failed: '+xhr.status));
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(entry.file);
+    });
+    updateFile(entry.id, {status:'done', progress:100});
+  } catch(err) {
+    console.error(err);
+    updateFile(entry.id, {status:'error', progress:100});
+  }
+}
+
+uploadBtn.onclick = async () => {
+  const pending = files.filter(f=>f.status==='waiting');
+  if(!pending.length) return;
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Uploading…';
+  await Promise.all(pending.map(f => uploadFile(f)));
+  uploadBtn.textContent = 'Upload to S3';
+  const hasWaiting = files.filter(f=>f.status==='waiting').length > 0;
+  uploadBtn.disabled = !hasWaiting;
+};
+</script>

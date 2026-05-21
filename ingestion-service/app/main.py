@@ -3,7 +3,6 @@ import os
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
-from app.retrieval.retriever import retrieve_chunks
 from app.ingestion.pipeline import ingest_pdf
 
 class QueryRequest(BaseModel):
@@ -31,11 +30,11 @@ async def upload_pdf(file: UploadFile = File(...)):
         "file": file.filename
     }
 
-@app.post("/query")
-async def query_documents(request: QueryRequest):
-    results = retrieve_chunks(request.query)
+# @app.post("/query")
+# async def query_documents(request: QueryRequest):
+#     results = retrieve_chunks(request.query)
 
-    return {
-        "query": request.query,
-        "results": results
-    }
+#     return {
+#         "query": request.query,
+#         "results": results
+#     }
