@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pinecone
+python-dotenv
+rank-bm25
+numpy
+python-multipart
+requests
+onnxruntime==1.19.2
+transformers
+certifi

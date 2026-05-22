@@ -1,2 +1,3 @@
-rag-upload-frontend
-retrieval-service/
+.venv
+.env
+__pycache__/
