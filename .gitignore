@@ -1,2 +1,4 @@
+.venv
+.env
 rag-upload-frontend
 retrieval-service/
